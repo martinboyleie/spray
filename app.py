@@ -163,17 +163,22 @@ def get_schedule_status(data):
     is_overdue = False
     minutes_until_next = None
     
+    # First, look for future scheduled times that haven't been completed
     for scheduled_time in scheduled_times:
         if scheduled_time > now and scheduled_time not in completed_times:
             next_spray_time = scheduled_time
             minutes_until_next = int((scheduled_time - now).total_seconds() / 60)
             break
-        elif scheduled_time <= now and scheduled_time not in completed_times:
-            # This time has passed and wasn't completed - it's overdue
-            next_spray_time = scheduled_time
-            is_overdue = True
-            minutes_until_next = int((now - scheduled_time).total_seconds() / 60)
-            break
+    
+    # If no future times found, look for overdue times (past times not completed)
+    if next_spray_time is None:
+        for scheduled_time in scheduled_times:
+            if scheduled_time <= now and scheduled_time not in completed_times:
+                # This time has passed and wasn't completed - it's overdue
+                next_spray_time = scheduled_time
+                is_overdue = True
+                minutes_until_next = int((now - scheduled_time).total_seconds() / 60)
+                break
     
     return {
         'enabled': True,
@@ -304,9 +309,33 @@ def record_spray(location_id):
 
 @app.route('/history')
 def history():
-    """Show detailed spray history"""
+    """Show detailed spray history (last 30 days)"""
     data = load_data()
-    return render_template('history.html', history=data['history'], total_sprays=data['total_sprays'])
+    
+    # Calculate date 30 days ago
+    thirty_days_ago = datetime.now().date() - timedelta(days=30)
+    today = datetime.now().date()
+    
+    # Filter history to last 30 days
+    recent_history = []
+    today_sprays = 0
+    total_recent_sprays = 0
+    
+    for entry in data['history']:
+        try:
+            entry_date = datetime.fromisoformat(entry['timestamp']).date()
+            if entry_date >= thirty_days_ago:
+                recent_history.append(entry)
+                total_recent_sprays += 1
+                if entry_date == today:
+                    today_sprays += 1
+        except:
+            continue
+    
+    return render_template('history.html', 
+                         history=recent_history, 
+                         total_sprays=total_recent_sprays,
+                         today_sprays=today_sprays)
 
 @app.route('/reset', methods=['POST'])
 def reset_cycle():
