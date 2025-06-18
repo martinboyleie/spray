@@ -1,0 +1,168 @@
+{% extends "base.html" %}
+
+{% block title %}History - Tongue Spray Tracker{% endblock %}
+
+{% block content %}
+<div class="container">
+    <!-- Header -->
+    <div class="row mb-4">
+        <div class="col-lg-12">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <h2><i class="fas fa-history me-2"></i>Spray History</h2>
+                    <p class="text-muted">Complete record of all spray applications</p>
+                </div>
+                <div>
+                    <a href="{{ url_for('dashboard') }}" class="btn btn-primary">
+                        <i class="fas fa-arrow-left me-2"></i>Back to Dashboard
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Summary Stats -->
+    <div class="row mb-4">
+        <div class="col-md-4">
+            <div class="card border-0 shadow-sm">
+                <div class="card-body text-center">
+                    <i class="fas fa-chart-line fa-2x text-primary mb-2"></i>
+                    <h5>Total Sprays</h5>
+                    <h3 class="text-primary">{{ total_sprays }}</h3>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card border-0 shadow-sm">
+                <div class="card-body text-center">
+                    <i class="fas fa-calendar-day fa-2x text-success mb-2"></i>
+                    <h5>Today's Sprays</h5>
+                    <h3 class="text-success">{{ history|selectattr('timestamp', 'match', today_pattern)|list|length }}</h3>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card border-0 shadow-sm">
+                <div class="card-body text-center">
+                    <i class="fas fa-sync-alt fa-2x text-info mb-2"></i>
+                    <h5>Completed Cycles</h5>
+                    <h3 class="text-info">{{ (history|length // 3) if history else 0 }}</h3>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- History Table -->
+    <div class="row">
+        <div class="col-lg-12">
+            <div class="card border-0 shadow-sm">
+                <div class="card-header bg-white">
+                    <h5 class="mb-0">
+                        <i class="fas fa-list me-2"></i>Complete History
+                    </h5>
+                </div>
+                <div class="card-body">
+                    {% if history %}
+                    <div class="table-responsive">
+                        <table class="table table-hover">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>#</th>
+                                    <th>Location</th>
+                                    <th>Date & Time</th>
+                                    <th>Cycle</th>
+                                    <th>Days Ago</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for entry in history|reverse %}
+                                <tr>
+                                    <td>
+                                        <span class="badge bg-primary">{{ loop.index }}</span>
+                                    </td>
+                                    <td>
+                                        <strong>{{ entry.location_name }}</strong>
+                                        <br>
+                                        <small class="text-muted">Location #{{ entry.location_id }}</small>
+                                    </td>
+                                    <td>
+                                        {% set entry_date = entry.timestamp[:10] %}
+                                        {% set entry_time = entry.timestamp[11:16] %}
+                                        <div>{{ entry_date }}</div>
+                                        <small class="text-muted">{{ entry_time }}</small>
+                                    </td>
+                                    <td>
+                                        <span class="badge bg-secondary">Cycle {{ entry.cycle }}</span>
+                                    </td>
+                                                                         <td>
+                                         <span class="text-muted">
+                                             {{ entry.timestamp|days_ago }}
+                                         </span>
+                                     </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    
+                    <!-- Pagination would go here if needed -->
+                    {% if history|length > 50 %}
+                    <div class="d-flex justify-content-center mt-3">
+                        <p class="text-muted">Showing most recent 50 entries</p>
+                    </div>
+                    {% endif %}
+                    
+                    {% else %}
+                    <div class="text-center text-muted py-5">
+                        <i class="fas fa-history fa-4x mb-3"></i>
+                        <h4>No History Yet</h4>
+                        <p>Start tracking your spray locations to see your history here.</p>
+                        <a href="{{ url_for('dashboard') }}" class="btn btn-primary">
+                            <i class="fas fa-plus me-2"></i>Record First Spray
+                        </a>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Location Usage Chart -->
+    {% if history %}
+    <div class="row mt-4">
+        <div class="col-lg-12">
+            <div class="card border-0 shadow-sm">
+                <div class="card-header bg-white">
+                    <h5 class="mb-0">
+                        <i class="fas fa-chart-bar me-2"></i>Location Usage Distribution
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        {% for i in range(1, 4) %}
+                        {% set location_count = history|selectattr('location_id', 'equalto', i|string)|list|length %}
+                        {% set percentage = ((location_count / total_sprays * 100) if total_sprays > 0 else 0)|round(1) %}
+                        <div class="col-md-6 col-lg-3 mb-3">
+                            <div class="text-center">
+                                <h6>Location {{ i }}</h6>
+                                <div class="progress mb-2" style="height: 20px;">
+                                    <div class="progress-bar" role="progressbar" 
+                                         style="width: {{ percentage }}%" 
+                                         aria-valuenow="{{ percentage }}" 
+                                         aria-valuemin="0" 
+                                         aria-valuemax="100">
+                                        {{ percentage }}%
+                                    </div>
+                                </div>
+                                <small class="text-muted">{{ location_count }} uses</small>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+</div>
+{% endblock %} 

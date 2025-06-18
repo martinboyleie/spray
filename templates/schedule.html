@@ -1,0 +1,293 @@
+{% extends "base.html" %}
+
+{% block title %}Schedule Configuration - Spray Tracker{% endblock %}
+
+{% block content %}
+<div class="container">
+    <!-- Header -->
+    <div class="row mb-4">
+        <div class="col-lg-12">
+            <div class="card border-0 shadow-sm bg-primary text-white">
+                <div class="card-body text-center py-4">
+                    <h2 class="card-title mb-2">
+                        <i class="fas fa-calendar-alt me-2"></i>Spray Schedule Configuration
+                    </h2>
+                    <p class="lead mb-0">Set up your daily spray schedule to stay on track</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Error Alert -->
+    {% if error %}
+    <div class="row mb-4">
+        <div class="col-lg-12">
+            <div class="alert alert-danger" role="alert">
+                <i class="fas fa-exclamation-triangle me-2"></i>
+                {{ error }}
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Schedule Status -->
+    {% if schedule_status.enabled %}
+    <div class="row mb-4">
+        <div class="col-lg-12">
+            <div class="card border-0 shadow-sm">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0">
+                        <i class="fas fa-info-circle me-2"></i>Today's Schedule Status
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-3">
+                            <div class="text-center">
+                                <h4 class="text-primary">{{ schedule_status.total_scheduled }}</h4>
+                                <small class="text-muted">Scheduled Sprays</small>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="text-center">
+                                <h4 class="text-success">{{ schedule_status.total_completed }}</h4>
+                                <small class="text-muted">Completed</small>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="text-center">
+                                <h4 class="text-warning">{{ schedule_status.total_scheduled - schedule_status.total_completed }}</h4>
+                                <small class="text-muted">Remaining</small>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="text-center">
+                                {% if schedule_status.next_spray_time %}
+                                    {% if schedule_status.is_overdue %}
+                                        <h4 class="text-danger">Overdue</h4>
+                                        <small class="text-muted">{{ schedule_status.minutes_until_next }} min ago</small>
+                                    {% else %}
+                                        <h4 class="text-info">{{ schedule_status.next_spray_time.strftime('%I:%M %p') }}</h4>
+                                        <small class="text-muted">Next spray</small>
+                                    {% endif %}
+                                {% else %}
+                                    <h4 class="text-success">Complete!</h4>
+                                    <small class="text-muted">All done today</small>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Progress bar -->
+                    <div class="mt-3">
+                        {% set progress_percent = (schedule_status.total_completed / schedule_status.total_scheduled * 100) if schedule_status.total_scheduled > 0 else 0 %}
+                        <div class="progress">
+                            <div class="progress-bar {% if progress_percent == 100 %}bg-success{% else %}bg-info{% endif %}" 
+                                 role="progressbar" 
+                                 style="width: {{ progress_percent }}%">
+                                {{ "%.0f"|format(progress_percent) }}%
+                            </div>
+                        </div>
+                        <small class="text-muted">Daily progress</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scheduled Times Timeline -->
+    {% if schedule_status.scheduled_times %}
+    <div class="row mb-4">
+        <div class="col-lg-12">
+            <div class="card border-0 shadow-sm">
+                <div class="card-header bg-white">
+                    <h5 class="mb-0">
+                        <i class="fas fa-clock me-2"></i>Today's Scheduled Times
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="timeline-horizontal">
+                        {% for scheduled_time in schedule_status.scheduled_times %}
+                        <div class="timeline-item-horizontal 
+                                    {% if scheduled_time in schedule_status.completed_times %}completed
+                                    {% elif scheduled_time <= schedule_status.scheduled_times[0].__class__.now() %}overdue
+                                    {% else %}pending{% endif %}">
+                            <div class="timeline-marker-horizontal">
+                                {% if scheduled_time in schedule_status.completed_times %}
+                                    <i class="fas fa-check"></i>
+                                {% elif scheduled_time <= schedule_status.scheduled_times[0].__class__.now() %}
+                                    <i class="fas fa-exclamation"></i>
+                                {% else %}
+                                    <i class="fas fa-clock"></i>
+                                {% endif %}
+                            </div>
+                            <div class="timeline-time">
+                                {{ scheduled_time.strftime('%I:%M %p') }}
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+    {% endif %}
+
+    <!-- Configuration Form -->
+    <div class="row">
+        <div class="col-lg-8 mx-auto">
+            <div class="card border-0 shadow-sm">
+                <div class="card-header bg-white">
+                    <h5 class="mb-0">
+                        <i class="fas fa-cog me-2"></i>Schedule Settings
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <form method="POST" action="{{ url_for('update_schedule') }}">
+                        <!-- Enable/Disable Schedule -->
+                        <div class="mb-4">
+                            <div class="form-check form-switch">
+                                <input class="form-check-input" type="checkbox" id="enabled" name="enabled" 
+                                       {% if schedule.enabled %}checked{% endif %}>
+                                <label class="form-check-label fw-bold" for="enabled">
+                                    Enable Scheduled Reminders
+                                </label>
+                                <small class="form-text text-muted d-block">
+                                    When enabled, the app will calculate optimal spray times and track your progress
+                                </small>
+                            </div>
+                        </div>
+
+                        <!-- Schedule Times -->
+                        <div class="row mb-4">
+                            <div class="col-md-6">
+                                <label for="start_time" class="form-label fw-bold">Start Time</label>
+                                <input type="time" class="form-control" id="start_time" name="start_time" 
+                                       value="{{ schedule.start_time }}" required>
+                                <small class="form-text text-muted">When to start the daily spray schedule</small>
+                            </div>
+                            <div class="col-md-6">
+                                <label for="end_time" class="form-label fw-bold">End Time</label>
+                                <input type="time" class="form-control" id="end_time" name="end_time" 
+                                       value="{{ schedule.end_time }}" required>
+                                <small class="form-text text-muted">When to end the daily spray schedule</small>
+                            </div>
+                        </div>
+
+                        <!-- Interval Settings -->
+                        <div class="mb-4">
+                            <label class="form-label fw-bold">Spray Interval</label>
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <label for="interval_hours" class="form-label">Hours</label>
+                                    <select class="form-select" id="interval_hours" name="interval_hours" required>
+                                        {% for hour in range(0, 13) %}
+                                        <option value="{{ hour }}" {% if schedule.interval_hours == hour %}selected{% endif %}>
+                                            {{ hour }} hour{% if hour != 1 %}s{% endif %}
+                                        </option>
+                                        {% endfor %}
+                                    </select>
+                                </div>
+                                <div class="col-md-6">
+                                    <label for="interval_minutes" class="form-label">Minutes</label>
+                                    <select class="form-select" id="interval_minutes" name="interval_minutes" required>
+                                        {% for minute in [0, 15, 30, 45] %}
+                                        <option value="{{ minute }}" {% if schedule.interval_minutes == minute %}selected{% endif %}>
+                                            {{ minute }} minutes
+                                        </option>
+                                        {% endfor %}
+                                    </select>
+                                </div>
+                            </div>
+                            <small class="form-text text-muted">How often to take sprays (must be greater than 0)</small>
+                        </div>
+
+                        <!-- Example Schedule Preview -->
+                        <div class="alert alert-info mb-4">
+                            <h6><i class="fas fa-lightbulb me-2"></i>Schedule Preview</h6>
+                            <p class="mb-0" id="schedule-preview">
+                                <span id="preview-text">
+                                    {% if schedule.enabled %}
+                                        Sprays every {{ schedule.interval_hours }}h{% if schedule.interval_minutes > 0 %} {{ schedule.interval_minutes }}m{% endif %} 
+                                        from {{ schedule.start_time|format_time }} to {{ schedule.end_time|format_time }}
+                                    {% else %}
+                                        Configure your schedule above to see a preview
+                                    {% endif %}
+                                </span>
+                            </p>
+                        </div>
+
+                        <!-- Action Buttons -->
+                        <div class="d-flex justify-content-between">
+                            <a href="{{ url_for('dashboard') }}" class="btn btn-outline-secondary">
+                                <i class="fas fa-arrow-left me-2"></i>Back to Dashboard
+                            </a>
+                            <button type="submit" class="btn btn-primary">
+                                <i class="fas fa-save me-2"></i>Save Schedule
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Update schedule preview when form changes
+function updatePreview() {
+    const enabled = document.getElementById('enabled').checked;
+    const startTime = document.getElementById('start_time').value;
+    const endTime = document.getElementById('end_time').value;
+    const hours = parseInt(document.getElementById('interval_hours').value);
+    const minutes = parseInt(document.getElementById('interval_minutes').value);
+    
+    const previewText = document.getElementById('preview-text');
+    
+    if (!enabled) {
+        previewText.textContent = 'Schedule is disabled';
+        return;
+    }
+    
+    if (hours === 0 && minutes === 0) {
+        previewText.textContent = 'Please set an interval greater than 0';
+        return;
+    }
+    
+    // Convert times to readable format
+    const formatTime = (timeStr) => {
+        const [hour, minute] = timeStr.split(':');
+        const date = new Date();
+        date.setHours(parseInt(hour), parseInt(minute));
+        return date.toLocaleTimeString('en-US', {
+            hour: 'numeric',
+            minute: '2-digit',
+            hour12: true
+        });
+    };
+    
+    const intervalText = hours > 0 ? 
+        `${hours}h${minutes > 0 ? ` ${minutes}m` : ''}` : 
+        `${minutes}m`;
+    
+    previewText.textContent = `Sprays every ${intervalText} from ${formatTime(startTime)} to ${formatTime(endTime)}`;
+}
+
+// Add event listeners
+document.addEventListener('DOMContentLoaded', function() {
+    const formElements = ['enabled', 'start_time', 'end_time', 'interval_hours', 'interval_minutes'];
+    formElements.forEach(id => {
+        const element = document.getElementById(id);
+        if (element) {
+            element.addEventListener('change', updatePreview);
+        }
+    });
+    
+    // Initial preview update
+    updatePreview();
+});
+</script>
+{% endblock %} 

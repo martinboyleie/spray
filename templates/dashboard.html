@@ -1,0 +1,311 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard - Tongue Spray Tracker{% endblock %}
+
+{% block content %}
+<div class="container">
+    <!-- Header with Next Location -->
+    <div class="row mb-4">
+        <div class="col-lg-12">
+            <div class="card border-0 shadow-sm bg-primary text-white">
+                <div class="card-body text-center py-4">
+                    <h2 class="card-title mb-3">
+                        <i class="fas fa-bullseye me-2"></i>Next Spray Location
+                    </h2>
+                    <h3 class="display-6 fw-bold">{{ next_location.name }}</h3>
+                    <p class="lead mb-3">Location #{{ next_location_id }}</p>
+                    <button class="btn btn-light btn-lg px-4" onclick="recordSpray('{{ next_location_id }}')">
+                        <i class="fas fa-spray-can me-2"></i>Record Spray Here
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Schedule Status (if enabled) -->
+    {% if schedule_status.enabled %}
+    <div class="row mb-4">
+        <div class="col-lg-12">
+            <div class="card border-0 shadow-sm {% if schedule_status.is_overdue %}bg-danger text-white{% elif schedule_status.next_spray_time %}bg-warning{% else %}bg-success text-white{% endif %}">
+                <div class="card-body text-center py-3">
+                    {% if schedule_status.is_overdue %}
+                        <h5 class="card-title mb-2">
+                            <i class="fas fa-exclamation-triangle me-2"></i>Spray Overdue!
+                        </h5>
+                        <p class="mb-0">
+                            Next spray was scheduled for {{ schedule_status.next_spray_time.strftime('%I:%M %p') }}
+                            ({{ schedule_status.minutes_until_next }} minutes ago)
+                        </p>
+                    {% elif schedule_status.next_spray_time %}
+                        <h5 class="card-title mb-2">
+                            <i class="fas fa-clock me-2"></i>Next Scheduled Spray
+                        </h5>
+                        <p class="mb-0">
+                            {{ schedule_status.next_spray_time.strftime('%I:%M %p') }}
+                            {% if schedule_status.minutes_until_next > 60 %}
+                                (in {{ (schedule_status.minutes_until_next // 60) }}h {{ (schedule_status.minutes_until_next % 60) }}m)
+                            {% else %}
+                                (in {{ schedule_status.minutes_until_next }} minutes)
+                            {% endif %}
+                        </p>
+                    {% else %}
+                        <h5 class="card-title mb-2">
+                            <i class="fas fa-check-circle me-2"></i>All Scheduled Sprays Complete!
+                        </h5>
+                        <p class="mb-0">Great job staying on schedule today!</p>
+                    {% endif %}
+                    <small class="d-block mt-2">
+                        Progress: {{ schedule_status.total_completed }}/{{ schedule_status.total_scheduled }} scheduled sprays completed
+                    </small>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Stats Row -->
+    <div class="row mb-4">
+        <div class="col-md-3">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-body text-center">
+                    <i class="fas fa-chart-line fa-2x text-primary mb-2"></i>
+                    <h5>Total Sprays</h5>
+                    <h3 class="text-primary">{{ total_sprays }}</h3>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-body text-center">
+                    <i class="fas fa-sync-alt fa-2x text-success mb-2"></i>
+                    <h5>Current Cycle</h5>
+                    <h3 class="text-success">{{ current_cycle }}</h3>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-body text-center">
+                    <i class="fas fa-check-circle fa-2x text-info mb-2"></i>
+                    <h5>Used This Cycle</h5>
+                    <h3 class="text-info">{{ locations|selectattr('used')|list|length }}/3</h3>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-body text-center">
+                    <form method="POST" action="{{ url_for('reset_cycle') }}" style="display: inline;">
+                        <i class="fas fa-redo fa-2x text-warning mb-2"></i>
+                        <h5>Reset Cycle</h5>
+                        <button type="submit" class="btn btn-warning btn-sm" onclick="return confirm('Reset current cycle?')">
+                            <i class="fas fa-redo me-1"></i>Reset
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Quick Actions -->
+    <div class="row mb-4">
+        <div class="col-lg-12">
+            <div class="card border-0 shadow-sm">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0">
+                            <i class="fas fa-tools me-2"></i>Quick Actions
+                        </h5>
+                        <div class="btn-group" role="group">
+                            <a href="{{ url_for('schedule_page') }}" class="btn btn-outline-primary">
+                                <i class="fas fa-calendar-alt me-1"></i>
+                                {% if schedule.enabled %}Manage Schedule{% else %}Setup Schedule{% endif %}
+                            </a>
+                            <a href="{{ url_for('history') }}" class="btn btn-outline-secondary">
+                                <i class="fas fa-history me-1"></i>View History
+                            </a>
+                        </div>
+                    </div>
+                    {% if schedule.enabled %}
+                    <small class="text-muted d-block mt-2">
+                        Schedule: {{ schedule.start_time|format_time }} - {{ schedule.end_time|format_time }}, 
+                        every {{ schedule.interval_hours }}h{% if schedule.interval_minutes > 0 %} {{ schedule.interval_minutes }}m{% endif %}
+                    </small>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tongue Map -->
+    <div class="row">
+        <div class="col-lg-8">
+            <div class="card border-0 shadow-sm">
+                <div class="card-header bg-white">
+                    <h4 class="mb-0">
+                        <i class="fas fa-map-marked-alt me-2"></i>Mouth Spray Locations
+                    </h4>
+                    <small class="text-muted">Click on any location to record a spray</small>
+                </div>
+                <div class="card-body">
+                    <div class="mouth-map">
+                        <!-- SVG Mouth Diagram -->
+                        <svg viewBox="0 0 400 250" class="mouth-svg">
+                            <!-- Mouth outline -->
+                            <ellipse cx="200" cy="100" rx="120" ry="40" fill="#ffb3ba" stroke="#ff9999" stroke-width="3" class="mouth-outline"/>
+                            <!-- Under tongue area -->
+                            <ellipse cx="200" cy="180" rx="80" ry="25" fill="#ff9999" stroke="#ff6666" stroke-width="2" class="under-tongue-area"/>
+                            
+                            <!-- Location 1: Left of Mouth -->
+                            <g class="location-marker {{ 'used' if locations['1'].used else 'unused' }} {{ 'next-location' if '1' == next_location_id else '' }}" 
+                               onclick="recordSpray('1')">
+                                <circle cx="120" cy="100" r="25" class="location-circle"/>
+                                <text x="120" y="108" text-anchor="middle" class="location-number">1</text>
+                            </g>
+                            
+                            <!-- Location 2: Right of Mouth -->
+                            <g class="location-marker {{ 'used' if locations['2'].used else 'unused' }} {{ 'next-location' if '2' == next_location_id else '' }}" 
+                               onclick="recordSpray('2')">
+                                <circle cx="280" cy="100" r="25" class="location-circle"/>
+                                <text x="280" y="108" text-anchor="middle" class="location-number">2</text>
+                            </g>
+                            
+                            <!-- Location 3: Under the Tongue -->
+                            <g class="location-marker {{ 'used' if locations['3'].used else 'unused' }} {{ 'next-location' if '3' == next_location_id else '' }}" 
+                               onclick="recordSpray('3')">
+                                <circle cx="200" cy="180" r="25" class="location-circle"/>
+                                <text x="200" y="188" text-anchor="middle" class="location-number">3</text>
+                            </g>
+                            
+                            <!-- Labels -->
+                            <text x="120" y="145" text-anchor="middle" class="location-label">Left of Mouth</text>
+                            <text x="280" y="145" text-anchor="middle" class="location-label">Right of Mouth</text>
+                            <text x="200" y="220" text-anchor="middle" class="location-label">Under the Tongue</text>
+                        </svg>
+                    </div>
+                    
+                    <!-- Manual Location Buttons -->
+                    <div class="row mt-4">
+                        {% for loc_id, location in locations.items() %}
+                        <div class="col-md-4 mb-2">
+                            <button class="btn btn-outline-primary w-100 location-btn {{ 'btn-success' if location.used else '' }} {{ 'btn-warning' if loc_id == next_location_id else '' }}" 
+                                    onclick="recordSpray('{{ loc_id }}')">
+                                <i class="fas fa-{{ 'check' if location.used else 'circle' }} me-1"></i>
+                                {{ loc_id }}. {{ location.name }}
+                            </button>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Recent History Sidebar -->
+        <div class="col-lg-4">
+            <div class="card border-0 shadow-sm">
+                <div class="card-header bg-white">
+                    <h5 class="mb-0">
+                        <i class="fas fa-clock me-2"></i>Recent Activity
+                    </h5>
+                </div>
+                <div class="card-body">
+                    {% if recent_history %}
+                    <div class="timeline">
+                        {% for entry in recent_history|reverse %}
+                        <div class="timeline-item">
+                            <div class="timeline-marker">
+                                <i class="fas fa-spray-can"></i>
+                            </div>
+                            <div class="timeline-content">
+                                <strong>{{ entry.location_name }}</strong>
+                                <br>
+                                <small class="text-muted">
+                                     {{ entry.timestamp|format_datetime }}
+                                     <span class="badge bg-secondary ms-1">Cycle {{ entry.cycle }}</span>
+                                 </small>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    {% else %}
+                    <div class="text-center text-muted py-4">
+                        <i class="fas fa-history fa-3x mb-3"></i>
+                        <p>No spray history yet.<br>Start by recording your first spray!</p>
+                    </div>
+                    {% endif %}
+                    
+                    <div class="d-grid mt-3">
+                        <a href="{{ url_for('history') }}" class="btn btn-outline-primary">
+                            <i class="fas fa-list me-2"></i>View Full History
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Success Toast -->
+<div class="toast-container position-fixed bottom-0 end-0 p-3">
+    <div id="successToast" class="toast" role="alert">
+        <div class="toast-header">
+            <i class="fas fa-check-circle text-success me-2"></i>
+            <strong class="me-auto">Spray Recorded</strong>
+            <button type="button" class="btn-close" data-bs-dismiss="toast"></button>
+        </div>
+        <div class="toast-body" id="toastMessage">
+            Spray recorded successfully!
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Record spray function
+async function recordSpray(locationId) {
+    try {
+        const response = await fetch(`/spray/${locationId}`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            }
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            // Show success toast
+            document.getElementById('toastMessage').textContent = data.message;
+            const toast = new bootstrap.Toast(document.getElementById('successToast'));
+            toast.show();
+            
+            // Reload page after short delay
+            setTimeout(() => {
+                window.location.reload();
+            }, 1500);
+        } else {
+            alert('Error: ' + data.message);
+        }
+    } catch (error) {
+        alert('Error recording spray: ' + error.message);
+    }
+}
+
+// Keyboard shortcuts
+document.addEventListener('keydown', function(e) {
+    if (e.key >= '1' && e.key <= '3') {
+        e.preventDefault();
+        recordSpray(e.key);
+    }
+});
+
+// Auto-refresh every 30 seconds to keep schedule status updated
+{% if schedule_status.enabled %}
+setInterval(() => {
+    window.location.reload();
+}, 30000);
+{% endif %}
+</script>
+{% endblock %} 
