@@ -5,6 +5,8 @@ let lastAlertTime = null;
 let alertCheckInterval = null;
 let hasShownNotificationPermission = false;
 
+
+
 document.addEventListener('DOMContentLoaded', function() {
     console.log('🏥 Tongue Spray Tracker loaded successfully!');
     initializeApp();

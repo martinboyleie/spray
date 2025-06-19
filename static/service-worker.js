@@ -1,5 +1,5 @@
 // Service Worker for Tongue Spray Tracker PWA
-const CACHE_NAME = 'spray-tracker-v1';
+const CACHE_NAME = 'spray-tracker-v4';
 const urlsToCache = [
   '/',
   '/static/css/medical-style.css',
@@ -12,6 +12,9 @@ const urlsToCache = [
 
 // Install event - cache resources
 self.addEventListener('install', function(event) {
+  // Force the waiting service worker to become the active service worker
+  self.skipWaiting();
+  
   event.waitUntil(
     caches.open(CACHE_NAME)
       .then(function(cache) {
@@ -23,47 +26,75 @@ self.addEventListener('install', function(event) {
 
 // Fetch event - serve from cache when offline
 self.addEventListener('fetch', function(event) {
+  // Skip cross-origin requests
+  if (!event.request.url.startsWith(self.location.origin)) {
+    return;
+  }
+  
   event.respondWith(
-    caches.match(event.request)
-      .then(function(response) {
-        // Return cached version or fetch from network
-        if (response) {
+    // For HTML pages, use network-first strategy to get fresh content
+    event.request.headers.get('accept') && event.request.headers.get('accept').includes('text/html') ?
+      fetch(event.request)
+        .then(function(response) {
+          // If network request succeeds, update cache and return response
+          if (response && response.status === 200) {
+            const responseToCache = response.clone();
+            caches.open(CACHE_NAME)
+              .then(function(cache) {
+                cache.put(event.request, responseToCache);
+              });
+          }
           return response;
-        }
-        
-        return fetch(event.request).then(function(response) {
-          // Don't cache if not a valid response
-          if (!response || response.status !== 200 || response.type !== 'basic') {
+        })
+        .catch(function() {
+          // If network fails, serve from cache
+          return caches.match(event.request);
+        })
+    :
+      // For other resources (CSS, JS, images), use cache-first strategy
+      caches.match(event.request)
+        .then(function(response) {
+          // Return cached version if available
+          if (response) {
             return response;
           }
+          
+          // Otherwise fetch from network and cache
+          return fetch(event.request).then(function(response) {
+            if (!response || response.status !== 200 || response.type !== 'basic') {
+              return response;
+            }
 
-          // Clone the response
-          var responseToCache = response.clone();
+            const responseToCache = response.clone();
+            caches.open(CACHE_NAME)
+              .then(function(cache) {
+                cache.put(event.request, responseToCache);
+              });
 
-          caches.open(CACHE_NAME)
-            .then(function(cache) {
-              cache.put(event.request, responseToCache);
-            });
-
-          return response;
-        });
-      }
-    )
+            return response;
+          });
+        })
   );
 });
 
 // Activate event - clean up old caches
 self.addEventListener('activate', function(event) {
   event.waitUntil(
-    caches.keys().then(function(cacheNames) {
-      return Promise.all(
-        cacheNames.map(function(cacheName) {
-          if (cacheName !== CACHE_NAME) {
-            return caches.delete(cacheName);
-          }
-        })
-      );
-    })
+    Promise.all([
+      // Clean up old caches
+      caches.keys().then(function(cacheNames) {
+        return Promise.all(
+          cacheNames.map(function(cacheName) {
+            if (cacheName !== CACHE_NAME) {
+              console.log('Deleting old cache:', cacheName);
+              return caches.delete(cacheName);
+            }
+          })
+        );
+      }),
+      // Take control of all clients immediately
+      self.clients.claim()
+    ])
   );
 });
 

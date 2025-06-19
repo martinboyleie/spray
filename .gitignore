@@ -230,4 +230,4 @@ yarn-error.log*
 
 # Static file builds (if using build tools)
 /static/build/
-/static/dist/ 
+/static/dist/ .gitToken
