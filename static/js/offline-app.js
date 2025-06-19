@@ -3,6 +3,9 @@ class SprayTracker {
     constructor() {
         this.storageKey = 'sprayTrackerData';
         this.data = this.loadData();
+        this.lastAlertTime = null;
+        this.alertCheckInterval = null;
+        this.hasShownNotificationPermission = false;
         this.init();
     }
 
@@ -57,6 +60,7 @@ class SprayTracker {
         this.renderDashboard();
         this.setupEventListeners();
         this.startAutoRefresh();
+        this.initializeScheduleAlerts();
     }
 
     // Get next location to spray
@@ -307,6 +311,15 @@ class SprayTracker {
         // Keyboard shortcuts
         document.addEventListener('keydown', (e) => {
             if (e.key >= '1' && e.key <= '3') {
+                const target = e.target;
+                // Don't trigger if user is typing in an input field
+                if (target.tagName.toLowerCase() === 'input' || 
+                    target.tagName.toLowerCase() === 'textarea' ||
+                    target.tagName.toLowerCase() === 'select' ||
+                    target.contentEditable === 'true') {
+                    return;
+                }
+                
                 e.preventDefault();
                 this.recordSpray(e.key);
             }
@@ -473,6 +486,236 @@ class SprayTracker {
             this.data = this.getDefaultData();
             this.renderDashboard();
             this.showToast('All data cleared!');
+        }
+    }
+
+    // Initialize schedule alerts
+    initializeScheduleAlerts() {
+        // Request notification permission
+        this.requestNotificationPermission();
+        
+        // Start checking for schedule alerts every minute
+        this.alertCheckInterval = setInterval(() => this.checkScheduleAlerts(), 60000);
+        
+        // Check immediately after 2 seconds
+        setTimeout(() => this.checkScheduleAlerts(), 2000);
+    }
+
+    // Request notification permission
+    async requestNotificationPermission() {
+        if (!('Notification' in window)) {
+            console.log('This browser does not support notifications');
+            return;
+        }
+        
+        if (Notification.permission === 'default' && !this.hasShownNotificationPermission) {
+            this.hasShownNotificationPermission = true;
+            try {
+                const permission = await Notification.requestPermission();
+                console.log('Notification permission:', permission);
+            } catch (error) {
+                console.log('Error requesting notification permission:', error);
+            }
+        }
+    }
+
+    // Check for schedule alerts
+    checkScheduleAlerts() {
+        const scheduleStatus = this.getScheduleStatus();
+        
+        if (scheduleStatus.enabled && scheduleStatus.next_spray_time) {
+            const nextSprayTime = new Date(scheduleStatus.next_spray_time);
+            const now = new Date();
+            
+            // Check if it's time for an alert (within 5 minutes or overdue)
+            const minutesUntilSpray = (nextSprayTime - now) / (1000 * 60);
+            const shouldAlert = scheduleStatus.is_overdue || (minutesUntilSpray <= 5 && minutesUntilSpray >= 0);
+            
+            if (shouldAlert) {
+                const alertKey = nextSprayTime.toISOString();
+                
+                // Only show alert once per scheduled time
+                if (this.lastAlertTime !== alertKey) {
+                    this.lastAlertTime = alertKey;
+                    this.showScheduleAlert(scheduleStatus);
+                }
+            }
+        }
+    }
+
+    // Show schedule alert
+    showScheduleAlert(scheduleStatus) {
+        const nextSprayTime = new Date(scheduleStatus.next_spray_time);
+        const timeString = nextSprayTime.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+        
+        let title, message;
+        
+        if (scheduleStatus.is_overdue) {
+            title = '⏰ Spray Overdue!';
+            message = `Your scheduled spray at ${timeString} is overdue. Time to take your medication!`;
+        } else {
+            title = '🔔 Spray Reminder';
+            message = `Time for your scheduled spray at ${timeString}!`;
+        }
+        
+        // Try to show browser notification first
+        if (this.showBrowserNotification(title, message)) {
+            console.log('Browser notification shown');
+        } else {
+            // Fallback to visual alert
+            this.showVisualAlert(title, message);
+        }
+        
+        // Also show toast notification
+        this.showToast(message);
+        
+        // Play notification sound if available
+        this.playNotificationSound();
+    }
+
+    // Show browser notification
+    showBrowserNotification(title, message) {
+        if (!('Notification' in window) || Notification.permission !== 'granted') {
+            return false;
+        }
+        
+        try {
+            const notification = new Notification(title, {
+                body: message,
+                requireInteraction: true,
+                tag: 'spray-reminder'
+            });
+            
+            // Auto-close after 10 seconds
+            setTimeout(() => notification.close(), 10000);
+            
+            // Handle click
+            notification.onclick = function() {
+                window.focus();
+                notification.close();
+            };
+            
+            return true;
+        } catch (error) {
+            console.error('Error showing browser notification:', error);
+            return false;
+        }
+    }
+
+    // Show visual alert
+    showVisualAlert(title, message) {
+        // Remove any existing alert
+        const existingAlert = document.querySelector('.schedule-alert-overlay');
+        if (existingAlert) {
+            existingAlert.remove();
+        }
+        
+        // Create alert overlay
+        const alertOverlay = document.createElement('div');
+        alertOverlay.className = 'schedule-alert-overlay';
+        alertOverlay.innerHTML = `
+            <div class="schedule-alert-modal">
+                <div class="alert alert-warning alert-dismissible fade show" role="alert">
+                    <h5 class="alert-heading">${title}</h5>
+                    <p class="mb-3">${message}</p>
+                    <div class="d-flex gap-2">
+                        <button type="button" class="btn btn-primary btn-sm" onclick="window.sprayTracker.dismissScheduleAlert()">
+                            <i class="fas fa-check me-1"></i>Got it!
+                        </button>
+                        <button type="button" class="btn btn-outline-secondary btn-sm" onclick="window.sprayTracker.snoozeScheduleAlert()">
+                            <i class="fas fa-clock me-1"></i>Snooze 5min
+                        </button>
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        // Add styles if not already present
+        if (!document.querySelector('#schedule-alert-styles')) {
+            const style = document.createElement('style');
+            style.id = 'schedule-alert-styles';
+            style.textContent = `
+                .schedule-alert-overlay {
+                    position: fixed;
+                    top: 0;
+                    left: 0;
+                    width: 100%;
+                    height: 100%;
+                    background: rgba(0, 0, 0, 0.5);
+                    z-index: 9999;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    animation: fadeIn 0.3s ease-in;
+                }
+                
+                .schedule-alert-modal {
+                    max-width: 400px;
+                    margin: 20px;
+                    animation: slideIn 0.3s ease-out;
+                }
+                
+                @keyframes fadeIn {
+                    from { opacity: 0; }
+                    to { opacity: 1; }
+                }
+                
+                @keyframes slideIn {
+                    from { transform: translateY(-50px); opacity: 0; }
+                    to { transform: translateY(0); opacity: 1; }
+                }
+            `;
+            document.head.appendChild(style);
+        }
+        
+        document.body.appendChild(alertOverlay);
+        
+        // Auto-dismiss after 30 seconds
+        setTimeout(() => {
+            if (document.body.contains(alertOverlay)) {
+                this.dismissScheduleAlert();
+            }
+        }, 30000);
+    }
+
+    // Dismiss schedule alert
+    dismissScheduleAlert() {
+        const overlay = document.querySelector('.schedule-alert-overlay');
+        if (overlay) {
+            overlay.remove();
+        }
+    }
+
+    // Snooze schedule alert
+    snoozeScheduleAlert() {
+        this.dismissScheduleAlert();
+        // Reset last alert time to allow re-alerting in 5 minutes
+        setTimeout(() => {
+            this.lastAlertTime = null;
+        }, 5 * 60 * 1000);
+    }
+
+    // Play notification sound
+    playNotificationSound() {
+        try {
+            // Create a simple beep sound using Web Audio API
+            const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            const oscillator = audioContext.createOscillator();
+            const gainNode = audioContext.createGain();
+            
+            oscillator.connect(gainNode);
+            gainNode.connect(audioContext.destination);
+            
+            oscillator.frequency.setValueAtTime(800, audioContext.currentTime);
+            oscillator.frequency.setValueAtTime(600, audioContext.currentTime + 0.1);
+            
+            gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
+            gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.2);
+            
+            oscillator.start(audioContext.currentTime);
+            oscillator.stop(audioContext.currentTime + 0.2);
+        } catch (error) {
+            console.log('Could not play notification sound:', error);
         }
     }
 }

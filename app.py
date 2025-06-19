@@ -374,5 +374,14 @@ def manifest():
     """Serve manifest with correct MIME type"""
     return app.send_static_file('manifest.json'), 200, {'Content-Type': 'application/json'}
 
+@app.route('/offline')
+def offline():
+    """Serve the offline version of the app"""
+    try:
+        with open('offline.html', 'r') as f:
+            return f.read()
+    except FileNotFoundError:
+        return "Offline version not found", 404
+
 if __name__ == '__main__':
     app.run(debug=True, host='0.0.0.0', port=8000) 

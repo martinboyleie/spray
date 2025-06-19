@@ -13,6 +13,8 @@ The `offline.html` file is a **complete standalone application** that:
 
 ## Deployment Options
 
+**Note**: We recommend avoiding traditional cloud storage services (Google Drive, Dropbox, OneDrive) for hosting HTML files as they no longer support direct file serving for web applications.
+
 ### Option 1: GitHub Pages (Recommended)
 
 1. **Create a GitHub Repository**
@@ -36,22 +38,32 @@ The `offline.html` file is a **complete standalone application** that:
    - GitHub will provide a URL like: `https://yourusername.github.io/repository-name`
    - This URL will work forever and be accessible from any device
 
-### Option 2: File Hosting Services
+### Option 2: Static Hosting Services
 
-Upload `offline.html` to any of these services:
-- **Netlify**: Drag and drop the file to netlify.com/drop
-- **Vercel**: Upload through vercel.com
-- **Firebase Hosting**: Use Firebase CLI
-- **Surge.sh**: Simple static hosting
+Upload `offline.html` to any of these reliable services:
+- **Netlify**: Drag and drop the file to netlify.com/drop (instant deployment)
+- **Vercel**: Upload through vercel.com (free tier available)
+- **Firebase Hosting**: Use Firebase CLI (Google's hosting service)
+- **Surge.sh**: Simple command-line static hosting
+- **Render**: Free static site hosting with GitHub integration
 
-### Option 3: Cloud Storage (Public Link)
+### Option 3: Alternative Hosting Services
 
-1. Upload `offline.html` to:
-   - Google Drive (make public and get shareable link)
-   - Dropbox (create public link)
-   - OneDrive (share with public link)
+For quick testing or temporary hosting:
+1. **Codepen.io**: Create a new pen, paste the HTML content, and get a shareable link
+2. **JSFiddle**: Create a new fiddle with the HTML content
+3. **Glitch.com**: Create a new project and upload the file
+4. **GitHub Gist**: Create a gist with the HTML file (though not ideal for full apps)
 
-2. Access the direct file URL from your iPhone
+**Note**: These are better for testing than permanent deployment.
+
+### Recommended Hosting Priority
+
+For best reliability and performance:
+1. **GitHub Pages** - Free, reliable, permanent URLs
+2. **Netlify** - Excellent for static sites, free tier generous
+3. **Vercel** - Fast deployment, good free tier
+4. **Firebase Hosting** - Google's reliable hosting platform
 
 ## iPhone/iPad Installation
 

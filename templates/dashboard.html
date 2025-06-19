@@ -124,6 +124,9 @@
                             <a href="{{ url_for('history') }}" class="btn btn-outline-secondary">
                                 <i class="fas fa-history me-1"></i>View History
                             </a>
+                            <a href="{{ url_for('offline') }}" class="btn btn-outline-info" target="_blank">
+                                <i class="fas fa-download me-1"></i>Offline Version
+                            </a>
                         </div>
                     </div>
                     {% if schedule.enabled %}
@@ -132,6 +135,10 @@
                         every {{ schedule.interval_hours }}h{% if schedule.interval_minutes > 0 %} {{ schedule.interval_minutes }}m{% endif %}
                     </small>
                     {% endif %}
+                    <small class="text-muted d-block mt-2">
+                        <i class="fas fa-info-circle me-1"></i>
+                        Offline Version: Standalone HTML file that works without internet connection
+                    </small>
                 </div>
             </div>
         </div>
